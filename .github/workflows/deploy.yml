@@ -1,8 +1,8 @@
-name: Deploy to ECS
+name: Deploy to EKS
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   deploy:
@@ -13,33 +13,23 @@ jobs:
       ECR_URI: ${{ secrets.ECR_URI }}
 
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v3
+    - uses: actions/checkout@v3
 
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v2
+    - uses: aws-actions/configure-aws-credentials@v2
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ secrets.AWS_REGION }}
 
-    - name: Login to ECR
-      run: |
+    - run: |
         aws ecr get-login-password --region $AWS_REGION | \
         docker login --username AWS --password-stdin $ECR_URI
 
-    - name: Build Docker Image
-      run: docker build -t my-nginx-app .
+    - run: docker build -t my-app .
+    - run: docker tag my-app:latest $ECR_URI:latest
+    - run: docker push $ECR_URI:latest
 
-    - name: Tag Image
-      run: docker tag my-nginx-app:latest $ECR_URI:latest
+    - run: |
+        aws eks update-kubeconfig --region $AWS_REGION --name my-eks-cluster
 
-    - name: Push Image
-      run: docker push $ECR_URI:latest
-
-    - name: Deploy to ECS
-      run: |
-        aws ecs update-service \
-        --cluster my-ecs-cluster \
-        --service my-service \
-        --force-new-deployment
+    - run: kubectl apply -f k8s/
